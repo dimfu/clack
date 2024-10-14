@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 )
 
 var (
+	command string
 	ctrl    *beep.Ctrl
 	timeSig TimeSignature
 	format  beep.Format
@@ -22,22 +24,63 @@ var (
 	audios  = []string{"./static/hi.wav", "./static/lo.wav"}
 
 	// flags
-	tempo   = flag.Int64("tempo", 120, "the speed at which a passage of this metronome should be played")
-	timesig = flag.String("timesig", "4/4", "indicate how many beats are in each measure")
+	tempo       = flag.Int64("tempo", 120, "the speed at which a passage of this metronome should be played")
+	timesig     = flag.String("timesig", "4/4", "indicate how many beats are in each measure")
+	timesiglist = flag.String("timesiglist", "4/4, 3/4", "show list of time signature available to use")
 )
 
+func printHelp() {
+	fmt.Println("Usage:")
+	fmt.Println("  clack [command] [flags]")
+	fmt.Println("\nCommands:")
+	fmt.Println("  run                   Run the metronome")
+	fmt.Println("  siglist               Print the list of available time signatures")
+	fmt.Println("  help                  Print this help view")
+	fmt.Println("\nFlags:")
+	fmt.Println("  --tempo <bpm>         Set the tempo (default: 120 bpm)")
+	fmt.Println("  --timesig <value>     Set the time signature (default: 4/4)")
+	fmt.Println("\nExamples:")
+	fmt.Println("  clack siglist")
+	fmt.Println("  clack run --tempo 100 --timesig 3/4")
+
+	os.Exit(0)
+}
+
+func printSigList() {
+	timeSigArr := []string{}
+	for _, v := range TIME_SIGNATURES {
+		timeSigArr = append(timeSigArr, fmt.Sprintf("-%d/%d\n", v.Beats, v.NoteValue))
+	}
+	fmt.Println("Available Time Signatures:\n", strings.Join(timeSigArr, " "))
+	os.Exit(0)
+}
+
 func init() {
-	flag.Parse()
-	if !ValidTempo(*tempo) {
-		log.Fatalf("tempo is not valid make sure its above %v and below %v", MIN_TEMPO, MAX_TEMPO)
-	}
+	if len(os.Args) > 1 {
+		command = os.Args[1]
+		switch command {
+		case "run":
+			flag.Parse()
 
-	validSig, err := ValidTimeSig(*timesig)
-	if err != nil {
-		log.Fatalf("%v", err.Error())
-	}
+			if !ValidTempo(*tempo) {
+				log.Fatalf("tempo is not valid make sure its above %v and below %v", MIN_TEMPO, MAX_TEMPO)
+			}
 
-	timeSig = validSig
+			validSig, err := ValidTimeSig(*timesig)
+			if err != nil {
+				log.Fatalf("%v", err.Error())
+			}
+
+			timeSig = validSig
+		case "siglist":
+			printSigList()
+		default:
+			log.Fatal("command not found, please refer to `help` command")
+			os.Exit(0)
+		}
+	} else {
+		printHelp()
+	}
 }
 
 func main() {
@@ -84,7 +127,8 @@ func main() {
 	nextTick := time.Now()
 	tick := 0
 
-	fmt.Println("Press ESC to quit")
+	ClearTerminal()
+	fmt.Println("Press [ESC] to quit, [SPACEBAR] to pause the metronome")
 	playtick(1) // init first tick
 
 	go func() {

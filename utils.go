@@ -3,6 +3,8 @@ package main
 import (
 	"errors"
 	"os"
+	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -47,4 +49,23 @@ func ValidTimeSig(input string) (TimeSignature, error) {
 	}
 
 	return TimeSignature{}, errors.New("time signature not found")
+}
+
+func runCmd(name string, arg ...string) {
+	cmd := exec.Command(name, arg...)
+	cmd.Stdout = os.Stdout
+	cmd.Run()
+}
+
+func ClearTerminal() {
+	switch runtime.GOOS {
+	case "darwin":
+		runCmd("clear")
+	case "linux":
+		runCmd("clear")
+	case "windows":
+		runCmd("cmd", "/c", "cls")
+	default:
+		runCmd("clear")
+	}
 }
