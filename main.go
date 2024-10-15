@@ -35,6 +35,8 @@ func printHelp() {
 	fmt.Println("  clack [command] [flags]")
 	fmt.Println("\nCommands:")
 	fmt.Println("  run                   Run the metronome")
+	fmt.Println("  add <name>            Add metronome config")
+	fmt.Println("  delete <name>         Remove specific config")
 	fmt.Println("  siglist               Print the list of available time signatures")
 	fmt.Println("  help                  Print this help view")
 	fmt.Println("\nFlags:")
@@ -43,6 +45,7 @@ func printHelp() {
 	fmt.Println("\nExamples:")
 	fmt.Println("  clack siglist")
 	fmt.Println("  clack run --tempo 100 --timesig 3/4")
+	fmt.Println("  clack run <config name>")
 
 	os.Exit(0)
 }
@@ -76,23 +79,21 @@ func init() {
 		case "add":
 			if len(os.Args) > 2 {
 				confName := os.Args[2]
-				cm, err := NewConfigManager()
+				err := CreateConf(Config{Key: confName, Tempo: *tempo, Timesig: *timesig})
 				if err != nil {
 					log.Fatal(err)
 				}
-				defer cm.File.Close()
-
-				err = cm.LoadConfig()
-				if err != nil {
-					log.Fatal(err)
-				}
-
-				err = cm.WriteConfig(Config{Key: confName, Tempo: *tempo, Timesig: *timesig})
-				if err != nil {
-					log.Fatal(err)
-				}
-
 				fmt.Printf("%v is added to the config", confName)
+				os.Exit(0)
+			}
+		case "delete":
+			if len(os.Args) > 2 {
+				confName := os.Args[2]
+				err := DeleteConfig(confName)
+				if err != nil {
+					log.Fatal(err)
+				}
+				fmt.Printf("%v is deleted from the config", confName)
 				os.Exit(0)
 			}
 		case "siglist":
