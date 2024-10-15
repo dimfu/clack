@@ -21,6 +21,7 @@ var (
 	timeSig TimeSignature
 	format  beep.Format
 	buffers []*beep.Buffer
+	config  []Config
 	audios  = []string{"./static/hi.wav", "./static/lo.wav"}
 
 	// flags
@@ -72,6 +73,28 @@ func init() {
 			}
 
 			timeSig = validSig
+		case "add":
+			if len(os.Args) > 2 {
+				confName := os.Args[2]
+				cm, err := NewConfigManager()
+				if err != nil {
+					log.Fatal(err)
+				}
+				defer cm.File.Close()
+
+				err = cm.LoadConfig()
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				err = cm.WriteConfig(Config{Key: confName, Tempo: *tempo, Timesig: *timesig})
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				fmt.Printf("%v is added to the config", confName)
+				os.Exit(0)
+			}
 		case "siglist":
 			printSigList()
 		default:

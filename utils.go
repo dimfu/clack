@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"log"
 	"os"
 	"os/exec"
 	"runtime"
@@ -54,7 +55,10 @@ func ValidTimeSig(input string) (TimeSignature, error) {
 func runCmd(name string, arg ...string) {
 	cmd := exec.Command(name, arg...)
 	cmd.Stdout = os.Stdout
-	cmd.Run()
+	err := cmd.Run()
+	if err != nil {
+		log.Fatal(err.Error())
+	}
 }
 
 func ClearTerminal() {
@@ -68,4 +72,15 @@ func ClearTerminal() {
 	default:
 		runCmd("clear")
 	}
+}
+
+func UserHomeDir() string {
+	if runtime.GOOS == "windows" {
+		home := os.Getenv("HOMEDRIVE") + os.Getenv("HOMEPATH")
+		if home == "" {
+			home = os.Getenv("USERPROFILE")
+		}
+		return home + "\\"
+	}
+	return os.Getenv("HOME") + "/"
 }
