@@ -12,5 +12,10 @@ go mod download
 go install .
 
 # run the thing
-clack --tempo=120 -timesig="4/4"
+clack -tempo=120 -timesig="4/4" run
 `````
+
+### more commands run:
+```bash
+clack help
+```

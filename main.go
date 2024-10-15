@@ -21,13 +21,12 @@ var (
 	timeSig TimeSignature
 	format  beep.Format
 	buffers []*beep.Buffer
-	config  []Config
 	audios  = []string{"./static/hi.wav", "./static/lo.wav"}
 
-	// flags
-	tempo       = flag.Int64("tempo", 120, "the speed at which a passage of this metronome should be played")
-	timesig     = flag.String("timesig", "4/4", "indicate how many beats are in each measure")
-	timesiglist = flag.String("timesiglist", "4/4, 3/4", "show list of time signature available to use")
+	//flags
+	tempo   = flag.Int64("tempo", 120, "the speed at which a passage of this metronome should be played")
+	timesig = flag.String("timesig", "4/4", "indicate how many beats are in each measure")
+	config  = flag.String("config", "", "the name of your saved config settings")
 )
 
 func printHelp() {
@@ -42,10 +41,11 @@ func printHelp() {
 	fmt.Println("\nFlags:")
 	fmt.Println("  --tempo <bpm>         Set the tempo (default: 120 bpm)")
 	fmt.Println("  --timesig <value>     Set the time signature (default: 4/4)")
+	fmt.Println("  --config <value>      Your saved config setting")
 	fmt.Println("\nExamples:")
 	fmt.Println("  clack siglist")
-	fmt.Println("  clack run --tempo 100 --timesig 3/4")
-	fmt.Println("  clack run <config name>")
+	fmt.Println("  clack --tempo 100 --timesig 3/4 run")
+	fmt.Println("  clack --config=\"cfg1\" run")
 
 	os.Exit(0)
 }
@@ -60,50 +60,80 @@ func printSigList() {
 }
 
 func init() {
-	if len(os.Args) > 1 {
-		command = os.Args[1]
-		switch command {
-		case "run":
-			flag.Parse()
+	flag.Parse()
+	flag.Usage = printHelp
 
-			if !ValidTempo(*tempo) {
-				log.Fatalf("tempo is not valid make sure its above %v and below %v", MIN_TEMPO, MAX_TEMPO)
-			}
+	args := make([]string, 0)
+	for i := len(os.Args) - len(flag.Args()) + 1; i < len(os.Args); {
+		if i > 1 && os.Args[i-2] == "--" {
+			break
+		}
+		args = append(args, flag.Arg(0))
+		if err := flag.CommandLine.Parse(os.Args[i:]); err != nil {
+			log.Fatal("error while parsing arguments")
+		}
 
-			validSig, err := ValidTimeSig(*timesig)
+		i += 1 + len(os.Args[i:]) - len(flag.Args())
+	}
+	args = append(args, flag.Args()...)
+
+	if len(args) < 1 {
+		flag.Usage()
+		os.Exit(0)
+	}
+
+	command = args[0]
+
+	switch command {
+	case "run":
+		if len(*config) > 0 {
+			key := *config
+			cfg, err := LoadConf(key)
 			if err != nil {
-				log.Fatalf("%v", err.Error())
+				log.Fatal(err)
 			}
+			tempo = &cfg.Tempo
+			timesig = &cfg.Timesig
+		}
 
-			timeSig = validSig
-		case "add":
-			if len(os.Args) > 2 {
-				confName := os.Args[2]
-				err := CreateConf(Config{Key: confName, Tempo: *tempo, Timesig: *timesig})
-				if err != nil {
-					log.Fatal(err)
-				}
-				fmt.Printf("%v is added to the config", confName)
-				os.Exit(0)
+		if !ValidTempo(*tempo) {
+			log.Fatalf("tempo is not valid make sure its above %v and below %v", MIN_TEMPO, MAX_TEMPO)
+		}
+
+		validSig, err := ValidTimeSig(*timesig)
+		if err != nil {
+			log.Fatalf("%v", err.Error())
+		}
+
+		timeSig = validSig
+		// continue
+	case "add":
+		if len(args) > 1 {
+			confName := args[1]
+			err := CreateConf(Config{Key: confName, Tempo: *tempo, Timesig: *timesig})
+			if err != nil {
+				log.Fatal(err)
 			}
-		case "delete":
-			if len(os.Args) > 2 {
-				confName := os.Args[2]
-				err := DeleteConfig(confName)
-				if err != nil {
-					log.Fatal(err)
-				}
-				fmt.Printf("%v is deleted from the config", confName)
-				os.Exit(0)
-			}
-		case "siglist":
-			printSigList()
-		default:
-			log.Fatal("command not found, please refer to `help` command")
+			fmt.Printf("%v is added to the config", confName)
 			os.Exit(0)
 		}
-	} else {
-		printHelp()
+	case "delete":
+		if len(args) > 1 {
+			confName := args[1]
+			err := DeleteConfig(confName)
+			if err != nil {
+				log.Fatal(err)
+			}
+			fmt.Printf("%v is deleted from the config", confName)
+			os.Exit(0)
+		}
+	case "siglist":
+		printSigList()
+	case "help":
+		flag.Usage()
+	default:
+		log.Fatal("command not found, please refer to `help` command")
+		os.Exit(0)
 	}
 }
 

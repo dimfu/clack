@@ -89,6 +89,20 @@ func initConfigManager() (*ConfigManager, error) {
 	return cm, nil
 }
 
+func LoadConf(key string) (*Config, error) {
+	cm, err := initConfigManager()
+	if err != nil {
+		return nil, err
+	}
+
+	c := cm.GetConfigByKey(key)
+	if c == nil {
+		return nil, fmt.Errorf("`%v` config not found", key)
+	}
+
+	return c, nil
+}
+
 func CreateConf(cfg Config) error {
 	cm, err := initConfigManager()
 	if err != nil {
