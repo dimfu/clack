@@ -145,13 +145,21 @@ func main() {
 		_ = keyboard.Close()
 	}()
 
+	var beatInterval time.Duration
+	switch timeSig.Beats {
+	case 6, 9, 12:
+		beatInterval = time.Duration((60.0 / (float64(*tempo) / 0.5) * float64(time.Second)))
+	default:
+		beatInterval = time.Duration(60.0 / float64(*tempo) * float64(time.Second))
+	}
+
 	for i, audios := range audios {
 		streamer, audioFormat := Read(audios)
 		defer streamer.Close()
 
 		if i == 0 {
 			format = audioFormat
-			err := speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/10))
+			err := speaker.Init(format.SampleRate, format.SampleRate.N(beatInterval))
 			if err != nil {
 				log.Fatalf("error while initializing speaker: %v", err)
 			}
@@ -160,8 +168,6 @@ func main() {
 		buffer.Append(streamer)
 		buffers = append(buffers, buffer)
 	}
-
-	beatInterval := time.Duration(60.0 / float64(*tempo) * float64(time.Second))
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
@@ -178,12 +184,11 @@ func main() {
 	ticker := time.NewTicker(beatInterval)
 	defer ticker.Stop()
 
-	nextTick := time.Now()
 	tick := 0
+	firstTick := true
 
 	ClearTerminal()
 	fmt.Println("Press [ESC] to quit, [SPACEBAR] to pause the metronome")
-	playtick(1) // init first tick
 
 	go func() {
 		for {
@@ -211,8 +216,8 @@ func main() {
 
 	for {
 		select {
-		case now := <-ticker.C:
-			if ctrl.Paused {
+		case <-ticker.C:
+			if ctrl != nil && ctrl.Paused {
 				// handle terminate signal when paused, otherwise it wont close the app lol
 				select {
 				case <-sig:
@@ -222,20 +227,18 @@ func main() {
 					continue
 				}
 			}
-			drift := now.Sub(nextTick)
-			if drift > 10*time.Millisecond || drift < -10*time.Millisecond {
-				nextTick = now
-			}
-
-			nextTick = nextTick.Add(beatInterval)
-			tick++
 			audioIdx := 0
-
-			if tick%int(timeSig.Beats) == 0 {
+			if firstTick || tick%int(timeSig.Beats) == 0 {
+				// play accent
 				audioIdx = 1
 			}
-
 			playtick(audioIdx)
+
+			if firstTick {
+				firstTick = false
+			} else {
+				tick++
+			}
 		case paused := <-pauseChan:
 			if paused {
 				fmt.Println("paused")
