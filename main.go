@@ -13,20 +13,23 @@ import (
 	"github.com/eiannone/keyboard"
 	"github.com/faiface/beep"
 	"github.com/faiface/beep/speaker"
+	"github.com/gosuri/uilive"
 )
 
 var (
-	command string
-	ctrl    *beep.Ctrl
-	timeSig TimeSignature
-	format  beep.Format
-	buffers []*beep.Buffer
-	audios  = []string{"./static/hi.wav", "./static/lo.wav"}
+	command      string
+	timeSig      TimeSignature
+	format       beep.Format
+	audios       = []string{"./static/hi.wav", "./static/lo.wav"}
+	beatInterval time.Duration
 
 	//flags
 	tempo   = flag.Int64("tempo", 120, "the speed at which a passage of this metronome should be played")
 	timesig = flag.String("timesig", "4/4", "indicate how many beats are in each measure")
 	config  = flag.String("config", "", "the name of your saved config settings")
+
+	circleEmpty  rune = '\u25CB' // ○
+	circleFilled rune = '\u25CF' // ●
 )
 
 func printHelp() {
@@ -145,7 +148,12 @@ func main() {
 		_ = keyboard.Close()
 	}()
 
-	var beatInterval time.Duration
+	// init beat arr to visualize the beat
+	beatsArr := make([]rune, timeSig.Beats)
+	for i := range beatsArr {
+		beatsArr[i] = circleEmpty
+	}
+
 	switch timeSig.Beats {
 	case 6, 9, 12:
 		beatInterval = time.Duration((60.0 / (float64(*tempo) / 0.5) * float64(time.Second)))
@@ -153,42 +161,22 @@ func main() {
 		beatInterval = time.Duration(60.0 / float64(*tempo) * float64(time.Second))
 	}
 
-	for i, audios := range audios {
-		streamer, audioFormat := Read(audios)
-		defer streamer.Close()
-
-		if i == 0 {
-			format = audioFormat
-			err := speaker.Init(format.SampleRate, format.SampleRate.N(beatInterval))
-			if err != nil {
-				log.Fatalf("error while initializing speaker: %v", err)
-			}
-		}
-		buffer := beep.NewBuffer(format)
-		buffer.Append(streamer)
-		buffers = append(buffers, buffer)
+	player, err := NewAudioPlayer(audios, beatInterval)
+	if err != nil {
+		log.Fatal(err.Error())
 	}
 
 	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
-
 	pauseChan := make(chan bool)
-
-	playtick := func(index int) {
-		shot := buffers[index].Streamer(0, buffers[index].Len())
-		setCtrl := &beep.Ctrl{Streamer: shot, Paused: false}
-		ctrl = setCtrl
-		speaker.Play(ctrl)
-	}
+	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 
 	ticker := time.NewTicker(beatInterval)
 	defer ticker.Stop()
 
-	tick := 0
-	firstTick := true
+	writer := uilive.New()
+	writer.Start()
 
 	ClearTerminal()
-	fmt.Println("Press [ESC] to quit, [SPACEBAR] to pause the metronome")
 
 	go func() {
 		for {
@@ -203,8 +191,8 @@ func main() {
 			}
 
 			if key == keyboard.KeySpace {
-				ctrl.Paused = !ctrl.Paused
-				pauseChan <- ctrl.Paused
+				player.ctrl.Paused = !player.ctrl.Paused
+				pauseChan <- player.ctrl.Paused
 			}
 
 			if key == keyboard.KeyEsc {
@@ -217,8 +205,7 @@ func main() {
 	for {
 		select {
 		case <-ticker.C:
-			if ctrl != nil && ctrl.Paused {
-				// handle terminate signal when paused, otherwise it wont close the app lol
+			if player.ctrl != nil && player.ctrl.Paused {
 				select {
 				case <-sig:
 					speaker.Clear()
@@ -227,26 +214,40 @@ func main() {
 					continue
 				}
 			}
-			audioIdx := 0
-			if firstTick || tick%int(timeSig.Beats) == 0 {
-				// play accent
-				audioIdx = 1
-			}
-			playtick(audioIdx)
 
-			if firstTick {
-				firstTick = false
-			} else {
-				tick++
+			modTick := player.tick % int(timeSig.Beats)
+
+			audioIdx := 1
+			if modTick != 0 {
+				audioIdx = 0
 			}
+
+			player.PlayTick(audioIdx)
+
+			var beatStr string
+			for idx := range beatsArr {
+				if idx == modTick {
+					beatsArr[idx] = circleFilled
+				} else {
+					beatsArr[idx] = circleEmpty
+				}
+				beatStr += fmt.Sprintf("%v", string(beatsArr[idx]))
+			}
+
+			fmt.Fprintf(writer, "%s\n", beatStr)
+			fmt.Fprintf(writer, "Press [ESC] to quit, [SPACEBAR] to pause the metronome\n")
 		case paused := <-pauseChan:
+			if player.ctrl != nil {
+				player.ctrl.Paused = paused
+			}
 			if paused {
-				fmt.Println("paused")
+				fmt.Fprintf(writer, "Paused\n")
 			} else {
-				fmt.Println("resumed")
+				fmt.Fprintf(writer, "Resumed\n")
 			}
 		case <-sig:
 			speaker.Clear()
+			writer.Stop()
 			return
 		}
 	}

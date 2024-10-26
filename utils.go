@@ -8,24 +8,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-
-	"github.com/faiface/beep"
-	"github.com/faiface/beep/wav"
 )
-
-func Read(path string) (beep.StreamSeekCloser, beep.Format) {
-	f, err := os.Open(path)
-	if err != nil {
-		panic("reading audio file failed" + err.Error())
-	}
-
-	streamer, format, err := wav.Decode(f)
-	if err != nil {
-		panic("error while decoding audio" + err.Error())
-	}
-
-	return streamer, format
-}
 
 func ValidTempo(input int64) bool {
 	return input > MIN_TEMPO && input < MAX_TEMPO
