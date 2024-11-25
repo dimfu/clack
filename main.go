@@ -20,7 +20,7 @@ var (
 	command      string
 	timeSig      TimeSignature
 	format       beep.Format
-	audios       = []string{"./static/hi.wav", "./static/lo.wav"}
+	audios       = []string{"static/hi.wav", "static/lo.wav"}
 	beatInterval time.Duration
 
 	//flags

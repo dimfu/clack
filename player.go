@@ -1,8 +1,8 @@
 package main
 
 import (
+	"embed"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/faiface/beep"
@@ -17,8 +17,11 @@ type AudioPlayer struct {
 	tick      int
 }
 
+//go:embed static/*
+var _audios embed.FS
+
 func Read(path string) (beep.StreamSeekCloser, beep.Format) {
-	f, err := os.Open(path)
+	f, err := _audios.Open(path)
 	if err != nil {
 		panic("reading audio file failed" + err.Error())
 	}

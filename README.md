@@ -5,11 +5,8 @@ yes it is a metronome to help me play guitar. instead of using the available met
 ## usage
 
 ```bash
-# install the dependencies
-go mod download
-
-# build the binary
-go install .
+# install the binary
+go install github.com/dimfu/clack@latest
 
 # run the thing
 clack -tempo=120 -timesig="4/4" run
